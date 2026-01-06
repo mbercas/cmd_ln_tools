@@ -18,23 +18,33 @@ fn unwrap_lines(data:Vec<String>) -> Vec<String> {
     output_data
 }
 
-fn append_line_number(data:Vec<String>) -> Vec<String> {
-    let input_data = unwrap_lines(data);
+/// Appends a line number at the beggining of every line,
+/// if the ignore_blanks flag is set, does not add a number to
+/// empty lines
+fn append_line_number(data:Vec<String>, ignore_blanks:bool) -> Vec<String> {
     
     // Calculate the right alignment of the number column
-    let nc = 1 + (input_data.len() % 10);
+    let nc = data.len().to_string().len();
 
-    input_data.iter()
-        .enumerate()
-        .map(|(index, line)| format!("{:>nc$} {}", index+1, line))
+    let mut line_number = 0;
+    data.iter()
+        .map(|line| {
+            let s;
+            if (!ignore_blanks) || (!line.is_empty()) {
+                line_number += 1;
+                s = format!("{:>nc$} {}", line_number, line);
+            } else {
+                s = String::new();
+            }
+            s
+            })
         .collect()
 }
 
 fn remove_consecutive_empty_lines(data:Vec<String>) -> Vec<String> {
-    let input_data = unwrap_lines(data);
     let mut empty_line_counter = 0;
     
-    input_data.into_iter()
+    data.into_iter()
         .filter(|line| {
             if line.is_empty() {
                 empty_line_counter += 1;
@@ -73,8 +83,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             .long("squeeze-blank")
             .action(ArgAction::SetTrue)
             .help("Remove consecutive empty lines"))
+        .arg(Arg::new("number-noblank")
+            .short('b')
+            .long("number-noblank")
+            .action(ArgAction::SetTrue)
+            .help("number nonempty output lines, overrides -n"))
         .get_matches();
-  
+
     let input_files = matches
         .get_many::<String>("FILE")
         .unwrap_or_default()
@@ -95,11 +110,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
+
+    // Split lines with mulitple end of line into separate vector entries
+    contents = unwrap_lines(contents);
+    
     if matches.get_flag("squeeze-blank") {
         contents = remove_consecutive_empty_lines(contents);
     }
-    if matches.get_flag("numbers") {
-        contents =  append_line_number(contents);
+    if matches.get_flag("number-noblank") {
+        contents =  append_line_number(contents, true);
+    }
+    else if matches.get_flag("numbers") {
+        contents =  append_line_number(contents, false);
     }
     
     print_output(contents);
@@ -133,20 +155,47 @@ mod cat_tests {
         lines
     }
 
+
+    #[test]
+    fn unwrap_lines_no_unwrapping() {
+        const N : usize = 100;
+        let xfactor = 1;
+        let orig_lines = generate_test_vector(N, xfactor);
+     
+        assert_eq!(N*xfactor, orig_lines.len());
+        let unwrapped = unwrap_lines(orig_lines);
+        assert_eq!(N*xfactor, unwrapped.len());
+
+        // running mulitple times should not make a difference
+        let unwrapped = unwrap_lines(unwrapped);
+        assert_eq!(N*xfactor, unwrapped.len());
+
+        // Test the empty vector
+        let unwrapped = unwrap_lines(vec![]);
+        assert_eq!(0, unwrapped.len());
+    }
+
+
+    #[test]
+    fn unwrap_lines_with_unwrapping() {
+        const N : usize = 100;
+        let xfactor = 2;
+        let orig_lines = generate_test_vector(N, xfactor);
+     
+        assert_eq!(N, orig_lines.len());
+        let unwrapped = unwrap_lines(orig_lines);
+        assert_eq!(N*xfactor, unwrapped.len());
+}
+
+
     #[test]
     fn append_line_number_check_returned_size() {
         let mut orig_lines = vec![];
         const N : usize = 100;
-        let mut xfactor = 1;
+        let xfactor = 1;
         orig_lines = generate_test_vector(N, xfactor);
 
-        let mod_lines = append_line_number(orig_lines);
-        assert_eq!(N*xfactor, mod_lines.len());
-
-        xfactor = 2;
-        orig_lines = generate_test_vector(N, xfactor);
-
-        let mod_lines = append_line_number(orig_lines);
+        let mod_lines = append_line_number(orig_lines, false);
         assert_eq!(N*xfactor, mod_lines.len());
    }
     
@@ -157,7 +206,7 @@ mod cat_tests {
         let xfactor = 1;
         orig_lines = generate_test_vector(N, xfactor);
 
-        let mod_lines = append_line_number(orig_lines);
+        let mod_lines = append_line_number(orig_lines, false);
         for (i, line) in mod_lines.iter().enumerate() {
             let mut tokens = line.split_whitespace();
             assert_eq!(i+1, tokens.next().unwrap().parse::<usize>().unwrap())
@@ -192,6 +241,11 @@ mod cat_tests {
 
         assert_eq!(N*xfactor+100, orig_lines.len());
         let mod_lines = remove_consecutive_empty_lines(orig_lines);
+        assert_eq!(N*xfactor+1, mod_lines.len());
+
+        // calling the function again should not remove more lines
+        
+        let mod_lines = remove_consecutive_empty_lines(mod_lines);
         assert_eq!(N*xfactor+1, mod_lines.len());
     }
 }
