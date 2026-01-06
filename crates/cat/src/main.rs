@@ -125,8 +125,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     
     print_output(contents);
-    
-    Ok(())
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        // Err(Box::new(Err(errors[0].1.into())))
+        Err("Errors reported to stderr".into())
+    }
 }
 
 
