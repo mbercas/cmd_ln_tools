@@ -8,3 +8,6 @@
  - Write all aoutomation in a Rust in a dedicated crate (check pattern `cargo xtask`)
 
 __See recommendations in [https://matklad.github.io/2021/08/22/large-rust-workspaces.html]__
+
+For recommendations on how to write command line applications follow:
+ - [https://rust-cli.github.io/book/tutorial/index.html]
