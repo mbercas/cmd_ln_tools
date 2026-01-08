@@ -4,17 +4,11 @@ use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
 
-/// Takes a vector of strings, where each string may have one or
+/// Takes a strins that may have  one or
 /// more EOL characters and separaes the lines to return a vector
 /// of single line strigns.
-fn unwrap_lines(data: Vec<String>) -> Vec<String> {
-    let mut output_data = vec![];
-
-    for lines in data.iter() {
-        output_data.extend(lines.split('\n').map(String::from).collect::<Vec<String>>());
-    }
-
-    output_data
+fn unwrap_lines(data: String) -> Vec<String> {
+    data.split('\n').map(String::from).collect::<Vec<String>>()
 }
 
 /// Appends a line number at the beggining of every line,
@@ -78,22 +72,21 @@ fn generate_output(data: Vec<String>,
     ) -> (Vec<String>, usize, usize) {
     
     // Split lines with mulitple end of line into separate vector entries
-    let mut data = unwrap_lines(data);
+    let mut output = data;
     let mut empty_line_counter = empty_line_counter;
     let mut last_line_number = last_line_number;
-
     if  squeeze_blank {
-        (data, empty_line_counter) = remove_consecutive_empty_lines(
-                                            data,
+        (output, empty_line_counter) = remove_consecutive_empty_lines(
+                                            output,
                                             empty_line_counter);
     }
     if number_noblank {
-        (data, last_line_number) = append_line_number(data, true, last_line_number);
+        (output, last_line_number) = append_line_number(output, true, last_line_number);
     } else if numbers {
-        (data, last_line_number) = append_line_number(data, false, last_line_number);
+        (output, last_line_number) = append_line_number(output, false, last_line_number);
     }
 
-    (data, empty_line_counter, last_line_number)
+    (output, empty_line_counter, last_line_number)
     
 }
 
@@ -140,7 +133,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut last_line_number = 0;
     for fname in input_files.iter() {
         match fs::read_to_string(fname) {
-            Ok(data) => contents.push(data),
+            Ok(data) => {
+                
+                let output = generate_output(unwrap_lines(data),
+                                           matches.get_flag("squeeze-blank"),
+                                           matches.get_flag("number-noblank"),
+                                           matches.get_flag("numbers"),
+                                           empty_line_counter,
+                                           last_line_number);
+                contents = output.0;
+                empty_line_counter = output.1;
+                last_line_number = output.2;
+                print_output(contents);
+            },
             Err(e) => {
                 eprintln!("Error reading file {fname}: {e}");
                 errors.push((fname, e));
@@ -149,18 +154,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
 
-    (contents,
-    empty_line_counter,
-    last_line_number) = generate_output(contents,
-                               matches.get_flag("squeeze-blank"),
-                               matches.get_flag("number-noblank"),
-                               matches.get_flag("numbers"),
-                               empty_line_counter,
-                               last_line_number);
-
-       // remove
-
-    print_output(contents);
 
     if errors.is_empty() {
         Ok(())
@@ -174,66 +167,55 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod cat_tests {
     use super::*;
 
-    fn generate_test_vector(n_lines: usize, x_factor: usize) -> Vec<String> {
-        let mut lines = vec![];
-        match x_factor {
-            1 => {
-                for i in 1..=n_lines {
-                    lines.push(format!("Line {}", i).to_owned());
-                }
-            }
-            2 => {
-                for i in 1..=n_lines {
-                    lines.push(
-                        format!("Line {}\nLine {}", x_factor * i - 1, x_factor * i).to_owned(),
-                    );
-                }
-            }
-            _ => panic!("Use a valid x_factor"),
-        }
 
+    fn generate_test_string(n_lines: usize) -> String {
+        let mut output : String = "".to_owned();
+        match n_lines {
+            0 => output,
+            1 => String::from("Line 1"),
+            2.. => {
+                        for i in 1..n_lines {
+                            output.push_str(&format!("Line {}\n", i));
+                        }
+                        output.push_str(&format!("Line {}", n_lines-1));
+                        output
+                    }
+        }
+    }
+
+    fn generate_test_vector(n_lines: usize) -> Vec<String> {
+        let mut lines = vec![];
+        for i in 1..=n_lines {
+            lines.push(format!("Line {}", i).to_owned());
+        }
         lines
     }
 
     #[test]
-    fn unwrap_lines_no_unwrapping() {
-        const N: usize = 100;
-        let xfactor = 1;
-        let orig_lines = generate_test_vector(N, xfactor);
+    fn unwrap_lines_() {
 
-        assert_eq!(N * xfactor, orig_lines.len());
+        let unwrapped = unwrap_lines("".to_owned());
+        assert_eq!(1, unwrapped.len());
+
+        let N: usize = 3;
+        let orig_lines = generate_test_string(N);
         let unwrapped = unwrap_lines(orig_lines);
-        assert_eq!(N * xfactor, unwrapped.len());
+        assert_eq!(N, unwrapped.len());
 
-        // running mulitple times should not make a difference
-        let unwrapped = unwrap_lines(unwrapped);
-        assert_eq!(N * xfactor, unwrapped.len());
-
-        // Test the empty vector
-        let unwrapped = unwrap_lines(vec![]);
-        assert_eq!(0, unwrapped.len());
-    }
-
-    #[test]
-    fn unwrap_lines_with_unwrapping() {
-        const N: usize = 100;
-        let xfactor = 2;
-        let orig_lines = generate_test_vector(N, xfactor);
-
-        assert_eq!(N, orig_lines.len());
+        let N = 100;
+        let orig_lines = generate_test_string(N);
         let unwrapped = unwrap_lines(orig_lines);
-        assert_eq!(N * xfactor, unwrapped.len());
+        assert_eq!(N, unwrapped.len());
     }
-
+ 
     #[test]
     fn append_line_number_check_returned_size() {
         let mut orig_lines = vec![];
         const N: usize = 100;
-        let xfactor = 1;
-        orig_lines = generate_test_vector(N, xfactor);
+        orig_lines = generate_test_vector(N);
 
         let mod_lines = append_line_number(orig_lines, false, 0_usize);
-        assert_eq!(N * xfactor, mod_lines.0.len());
+        assert_eq!(N, mod_lines.0.len());
         assert_eq!(N, mod_lines.1);
     }
 
@@ -241,8 +223,7 @@ mod cat_tests {
     fn append_line_number_check_indexing() {
         let mut orig_lines = vec![];
         const N: usize = 100;
-        let xfactor = 1;
-        orig_lines = generate_test_vector(N, xfactor);
+        orig_lines = generate_test_vector(N);
 
         let mod_lines = append_line_number(orig_lines, false, 0_usize);
         for (i, line) in mod_lines.0.iter().enumerate() {
@@ -273,23 +254,22 @@ mod cat_tests {
     #[test]
     fn remove_consecutive_empty_lines_check_count() {
         const N: usize = 100;
-        let xfactor = 1;
-        let mut orig_lines = generate_test_vector(N, xfactor);
+        let mut orig_lines = generate_test_vector(N);
 
         for _ in 0..100 {
             orig_lines.push(String::from(""));
         }
 
-        assert_eq!(N * xfactor + 100, orig_lines.len());
+        assert_eq!(N + 100, orig_lines.len());
         let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
-        assert_eq!(N * xfactor + 1, mod_lines.0.len());
+        assert_eq!(N + 1, mod_lines.0.len());
         assert_eq!(N, mod_lines.1);
 
         // calling the function again should not remove more lines, but should
         // report the emoty line at the end
 
         let mod_lines = remove_consecutive_empty_lines(mod_lines.0, 0_usize);
-        assert_eq!(N * xfactor + 1, mod_lines.0.len());
+        assert_eq!(N + 1, mod_lines.0.len());
         assert_eq!(1, mod_lines.1);
     }
 }
