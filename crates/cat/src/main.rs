@@ -1,4 +1,4 @@
-use clap::{command, Arg, ArgAction};
+use clap::{Arg, ArgAction, command};
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -14,14 +14,17 @@ fn unwrap_lines(data: String) -> Vec<String> {
 /// Appends a line number at the beggining of every line,
 /// if the ignore_blanks flag is set, does not add a number to
 /// empty lines
-fn append_line_number(data: Vec<String>,
+fn append_line_number(
+    data: Vec<String>,
     ignore_blanks: bool,
-    starting_number: usize) -> (Vec<String>, usize) {
+    starting_number: usize,
+) -> (Vec<String>, usize) {
     // Calculate the right alignment of the number column
     let nc = data.len().to_string().len();
 
     let mut line_number = starting_number;
-    let output = data.iter()
+    let output = data
+        .iter()
         .map(|line| {
             let s;
             if (!ignore_blanks) || (!line.is_empty()) {
@@ -33,15 +36,18 @@ fn append_line_number(data: Vec<String>,
             s
         })
         .collect();
-    
+
     (output, line_number)
 }
 
-fn remove_consecutive_empty_lines(data: Vec<String>,
-                                  prev_emptylines: usize) -> (Vec<String>, usize) {
+fn remove_consecutive_empty_lines(
+    data: Vec<String>,
+    prev_emptylines: usize,
+) -> (Vec<String>, usize) {
     let mut empty_line_counter = prev_emptylines;
 
-    let output = data.into_iter()
+    let output = data
+        .into_iter()
         .filter(|line| {
             if line.is_empty() {
                 empty_line_counter += 1;
@@ -51,7 +57,7 @@ fn remove_consecutive_empty_lines(data: Vec<String>,
             empty_line_counter < 2
         })
         .collect();
-    
+
     (output, empty_line_counter)
 }
 
@@ -65,20 +71,20 @@ fn print_output(data: Vec<String>) {
     }
 }
 
-fn generate_output(data: Vec<String>,
-                   squeeze_blank: bool, number_noblank: bool, numbers: bool,
-                   empty_line_counter: usize,
-                   last_line_number: usize
-    ) -> (Vec<String>, usize, usize) {
-    
+fn generate_output(
+    data: Vec<String>,
+    squeeze_blank: bool,
+    number_noblank: bool,
+    numbers: bool,
+    empty_line_counter: usize,
+    last_line_number: usize,
+) -> (Vec<String>, usize, usize) {
     // Split lines with mulitple end of line into separate vector entries
     let mut output = data;
     let mut empty_line_counter = empty_line_counter;
     let mut last_line_number = last_line_number;
-    if  squeeze_blank {
-        (output, empty_line_counter) = remove_consecutive_empty_lines(
-                                            output,
-                                            empty_line_counter);
+    if squeeze_blank {
+        (output, empty_line_counter) = remove_consecutive_empty_lines(output, empty_line_counter);
     }
     if number_noblank {
         (output, last_line_number) = append_line_number(output, true, last_line_number);
@@ -87,7 +93,6 @@ fn generate_output(data: Vec<String>,
     }
 
     (output, empty_line_counter, last_line_number)
-    
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -134,26 +139,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     for fname in input_files.iter() {
         match fs::read_to_string(fname) {
             Ok(data) => {
-                
-                let output = generate_output(unwrap_lines(data),
-                                           matches.get_flag("squeeze-blank"),
-                                           matches.get_flag("number-noblank"),
-                                           matches.get_flag("numbers"),
-                                           empty_line_counter,
-                                           last_line_number);
+                let output = generate_output(
+                    unwrap_lines(data),
+                    matches.get_flag("squeeze-blank"),
+                    matches.get_flag("number-noblank"),
+                    matches.get_flag("numbers"),
+                    empty_line_counter,
+                    last_line_number,
+                );
                 contents = output.0;
                 empty_line_counter = output.1;
                 last_line_number = output.2;
                 print_output(contents);
-            },
+            }
             Err(e) => {
                 eprintln!("Error reading file {fname}: {e}");
                 errors.push((fname, e));
             }
         }
     }
-
-
 
     if errors.is_empty() {
         Ok(())
@@ -167,19 +171,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod cat_tests {
     use super::*;
 
-
     fn generate_test_string(n_lines: usize) -> String {
-        let mut output : String = "".to_owned();
+        let mut output: String = "".to_owned();
         match n_lines {
             0 => output,
             1 => String::from("Line 1"),
             2.. => {
-                        for i in 1..n_lines {
-                            output.push_str(&format!("Line {}\n", i));
-                        }
-                        output.push_str(&format!("Line {}", n_lines-1));
-                        output
-                    }
+                for i in 1..n_lines {
+                    output.push_str(&format!("Line {}\n", i));
+                }
+                output.push_str(&format!("Line {}", n_lines - 1));
+                output
+            }
         }
     }
 
@@ -193,7 +196,6 @@ mod cat_tests {
 
     #[test]
     fn unwrap_lines_() {
-
         let unwrapped = unwrap_lines("".to_owned());
         assert_eq!(1, unwrapped.len());
 
@@ -207,7 +209,7 @@ mod cat_tests {
         let unwrapped = unwrap_lines(orig_lines);
         assert_eq!(N, unwrapped.len());
     }
- 
+
     #[test]
     fn append_line_number_check_returned_size() {
         let mut orig_lines = vec![];
@@ -239,7 +241,7 @@ mod cat_tests {
         assert_eq!(0, mod_lines.0.len());
         assert_eq!(0, mod_lines.1);
 
-        const N : usize = 100;
+        const N: usize = 100;
 
         let mut orig_lines = vec![];
         for _ in 0..N {
