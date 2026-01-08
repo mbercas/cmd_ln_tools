@@ -2,7 +2,6 @@ use assert_cmd::cargo::*;
 use assert_fs::prelude::FileWriteStr;
 use predicates::prelude::*;
 
-
 #[test]
 fn dump_file_contents() -> Result<(), Box<dyn std::error::Error>> {
     let file = assert_fs::NamedTempFile::new("first_file.txt")?;
@@ -18,7 +17,6 @@ fn dump_file_contents() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 #[test]
 fn add_line_numbers() -> Result<(), Box<dyn std::error::Error>> {
     let file = assert_fs::NamedTempFile::new("first_file.txt")?;
@@ -26,15 +24,13 @@ fn add_line_numbers() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cmd = cargo_bin_cmd!("cat");
 
-    cmd.arg("-n")
-        .arg(file.path());
+    cmd.arg("-n").arg(file.path());
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("1 Line 1\n2 Line 2"));
 
     Ok(())
 }
-
 
 #[test]
 fn concatenate_file_contents() -> Result<(), Box<dyn std::error::Error>> {
@@ -45,12 +41,11 @@ fn concatenate_file_contents() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cmd = cargo_bin_cmd!("cat");
 
-    cmd.arg(file1.path())
-       .arg(file2.path());
+    cmd.arg(file1.path()).arg(file2.path());
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("Line 1\nLine 2\nLine 3\nLine 4"));
-       // .stdout(predicate::str::contains("1 Line 1\n2 Line 2\nLine 3\nLine 4"));
+    // .stdout(predicate::str::contains("1 Line 1\n2 Line 2\nLine 3\nLine 4"));
 
     Ok(())
 }
@@ -64,22 +59,16 @@ fn concatenate_file_contents_and_number() -> Result<(), Box<dyn std::error::Erro
 
     let mut cmd = cargo_bin_cmd!("cat");
 
-    cmd.arg("-n")
-        .arg(file1.path())
-        .arg(file2.path());
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains("1 Line 1\n2 Line 2\n3 Line 3\n4 Line 4"));
+    cmd.arg("-n").arg(file1.path()).arg(file2.path());
+    cmd.assert().success().stdout(predicate::str::contains(
+        "1 Line 1\n2 Line 2\n3 Line 3\n4 Line 4",
+    ));
 
     Ok(())
 }
 
-
-
-
 #[test]
 fn file_doesnt_exist() -> Result<(), Box<dyn std::error::Error>> {
-
     let mut cmd = cargo_bin_cmd!("cat");
 
     let bad_file = "kk.txt";
@@ -87,7 +76,6 @@ fn file_doesnt_exist() -> Result<(), Box<dyn std::error::Error>> {
     cmd.assert()
         .failure()
         .stderr(predicate::str::contains("Error"));
-        
-    
+
     Ok(())
 }
