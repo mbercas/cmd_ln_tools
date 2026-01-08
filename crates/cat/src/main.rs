@@ -20,12 +20,14 @@ fn unwrap_lines(data: Vec<String>) -> Vec<String> {
 /// Appends a line number at the beggining of every line,
 /// if the ignore_blanks flag is set, does not add a number to
 /// empty lines
-fn append_line_number(data: Vec<String>, ignore_blanks: bool) -> Vec<String> {
+fn append_line_number(data: Vec<String>,
+    ignore_blanks: bool,
+    starting_number: usize) -> (Vec<String>, usize) {
     // Calculate the right alignment of the number column
     let nc = data.len().to_string().len();
 
-    let mut line_number = 0;
-    data.iter()
+    let mut line_number = starting_number;
+    let output = data.iter()
         .map(|line| {
             let s;
             if (!ignore_blanks) || (!line.is_empty()) {
@@ -36,12 +38,14 @@ fn append_line_number(data: Vec<String>, ignore_blanks: bool) -> Vec<String> {
             }
             s
         })
-        .collect()
+        .collect();
+    
+    (output, line_number)
 }
 
 fn remove_consecutive_empty_lines(data: Vec<String>,
                                   prev_emptylines: usize) -> (Vec<String>, usize) {
-    let mut empty_line_counter = 0;
+    let mut empty_line_counter = prev_emptylines;
 
     let output = data.into_iter()
         .filter(|line| {
@@ -65,6 +69,32 @@ fn print_output(data: Vec<String>) {
         // TODO: handle the Err
         let _ = writeln!(handle, "{lines}");
     }
+}
+
+fn generate_output(data: Vec<String>,
+                   squeeze_blank: bool, number_noblank: bool, numbers: bool,
+                   empty_line_counter: usize,
+                   last_line_number: usize
+    ) -> (Vec<String>, usize, usize) {
+    
+    // Split lines with mulitple end of line into separate vector entries
+    let mut data = unwrap_lines(data);
+    let mut empty_line_counter = empty_line_counter;
+    let mut last_line_number = last_line_number;
+
+    if  squeeze_blank {
+        (data, empty_line_counter) = remove_consecutive_empty_lines(
+                                            data,
+                                            empty_line_counter);
+    }
+    if number_noblank {
+        (data, last_line_number) = append_line_number(data, true, last_line_number);
+    } else if numbers {
+        (data, last_line_number) = append_line_number(data, false, last_line_number);
+    }
+
+    (data, empty_line_counter, last_line_number)
+    
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -105,8 +135,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut errors = vec![];
 
     // A counter of how many empty lines at the end of the prev. file
-    let mut empty_line_counter = 0;
 
+    let mut empty_line_counter = 0;
+    let mut last_line_number = 0;
     for fname in input_files.iter() {
         match fs::read_to_string(fname) {
             Ok(data) => contents.push(data),
@@ -117,19 +148,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // Split lines with mulitple end of line into separate vector entries
-    contents = unwrap_lines(contents);
 
-    if matches.get_flag("squeeze-blank") {
-        (contents, empty_line_counter) = remove_consecutive_empty_lines(
-                                            contents,
-                                            empty_line_counter);
-    }
-    if matches.get_flag("number-noblank") {
-        contents = append_line_number(contents, true);
-    } else if matches.get_flag("numbers") {
-        contents = append_line_number(contents, false);
-    }
+    (contents,
+    empty_line_counter,
+    last_line_number) = generate_output(contents,
+                               matches.get_flag("squeeze-blank"),
+                               matches.get_flag("number-noblank"),
+                               matches.get_flag("numbers"),
+                               empty_line_counter,
+                               last_line_number);
+
+       // remove
 
     print_output(contents);
 
@@ -203,8 +232,9 @@ mod cat_tests {
         let xfactor = 1;
         orig_lines = generate_test_vector(N, xfactor);
 
-        let mod_lines = append_line_number(orig_lines, false);
-        assert_eq!(N * xfactor, mod_lines.len());
+        let mod_lines = append_line_number(orig_lines, false, 0_usize);
+        assert_eq!(N * xfactor, mod_lines.0.len());
+        assert_eq!(N, mod_lines.1);
     }
 
     #[test]
@@ -214,8 +244,8 @@ mod cat_tests {
         let xfactor = 1;
         orig_lines = generate_test_vector(N, xfactor);
 
-        let mod_lines = append_line_number(orig_lines, false);
-        for (i, line) in mod_lines.iter().enumerate() {
+        let mod_lines = append_line_number(orig_lines, false, 0_usize);
+        for (i, line) in mod_lines.0.iter().enumerate() {
             let mut tokens = line.split_whitespace();
             assert_eq!(i + 1, tokens.next().unwrap().parse::<usize>().unwrap())
         }
