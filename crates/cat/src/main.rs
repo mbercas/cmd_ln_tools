@@ -39,10 +39,11 @@ fn append_line_number(data: Vec<String>, ignore_blanks: bool) -> Vec<String> {
         .collect()
 }
 
-fn remove_consecutive_empty_lines(data: Vec<String>) -> Vec<String> {
+fn remove_consecutive_empty_lines(data: Vec<String>,
+                                  prev_emptylines: usize) -> (Vec<String>, usize) {
     let mut empty_line_counter = 0;
 
-    data.into_iter()
+    let output = data.into_iter()
         .filter(|line| {
             if line.is_empty() {
                 empty_line_counter += 1;
@@ -51,7 +52,9 @@ fn remove_consecutive_empty_lines(data: Vec<String>) -> Vec<String> {
             }
             empty_line_counter < 2
         })
-        .collect()
+        .collect();
+    
+    (output, empty_line_counter)
 }
 
 fn print_output(data: Vec<String>) {
@@ -101,6 +104,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut contents: Vec<String> = vec![];
     let mut errors = vec![];
 
+    // A counter of how many empty lines at the end of the prev. file
+    let mut empty_line_counter = 0;
+
     for fname in input_files.iter() {
         match fs::read_to_string(fname) {
             Ok(data) => contents.push(data),
@@ -115,7 +121,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     contents = unwrap_lines(contents);
 
     if matches.get_flag("squeeze-blank") {
-        contents = remove_consecutive_empty_lines(contents);
+        (contents, empty_line_counter) = remove_consecutive_empty_lines(
+                                            contents,
+                                            empty_line_counter);
     }
     if matches.get_flag("number-noblank") {
         contents = append_line_number(contents, true);
@@ -216,16 +224,20 @@ mod cat_tests {
     #[test]
     fn remove_consecutive_empty_lines_empty_input() {
         let orig_lines = vec![];
-        let mod_lines = remove_consecutive_empty_lines(orig_lines);
-        assert_eq!(0, mod_lines.len());
+        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        assert_eq!(0, mod_lines.0.len());
+        assert_eq!(0, mod_lines.1);
+
+        const N : usize = 100;
 
         let mut orig_lines = vec![];
-        for _ in 0..100 {
+        for _ in 0..N {
             orig_lines.push(String::from(""));
         }
 
-        let mod_lines = remove_consecutive_empty_lines(orig_lines);
-        assert_eq!(1, mod_lines.len()); // one line of the repeated chunk remains
+        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        assert_eq!(1, mod_lines.0.len()); // one line of the repeated chunk remains
+        assert_eq!(N, mod_lines.1);
     }
 
     #[test]
@@ -239,12 +251,15 @@ mod cat_tests {
         }
 
         assert_eq!(N * xfactor + 100, orig_lines.len());
-        let mod_lines = remove_consecutive_empty_lines(orig_lines);
-        assert_eq!(N * xfactor + 1, mod_lines.len());
+        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        assert_eq!(N * xfactor + 1, mod_lines.0.len());
+        assert_eq!(N, mod_lines.1);
 
-        // calling the function again should not remove more lines
+        // calling the function again should not remove more lines, but should
+        // report the emoty line at the end
 
-        let mod_lines = remove_consecutive_empty_lines(mod_lines);
-        assert_eq!(N * xfactor + 1, mod_lines.len());
+        let mod_lines = remove_consecutive_empty_lines(mod_lines.0, 0_usize);
+        assert_eq!(N * xfactor + 1, mod_lines.0.len());
+        assert_eq!(1, mod_lines.1);
     }
 }
