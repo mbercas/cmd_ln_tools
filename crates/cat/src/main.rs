@@ -26,13 +26,11 @@ fn append_line_number(
     let output = data
         .iter()
         .map(|line| {
-            let s;
+            let mut s = String::new();
             if (!ignore_blanks) || (!line.is_empty()) {
                 line_number += 1;
                 s = format!("{:>nc$} {}", line_number, line);
-            } else {
-                s = String::new();
-            }
+            } 
             s
         })
         .collect();
