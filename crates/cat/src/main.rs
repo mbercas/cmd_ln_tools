@@ -1,13 +1,8 @@
-use clap::{Arg, ArgAction, command};
+use clap::{command, Arg, ArgAction};
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::io::{self, Stdin, Write};
-
-
-
-
-
 
 /// A struct to store the parsed flags from the command line
 #[derive(Debug)]
@@ -17,7 +12,6 @@ struct OutputFlags {
     number_noblank: bool,
     show_ends: bool,
 }
-
 
 /// Takes a strins that may have  one or
 /// more EOL characters and separaes the lines to return a vector
@@ -45,12 +39,16 @@ fn append_line_number(
             if (!ignore_blanks) || (!line.is_empty()) {
                 line_number += 1;
                 s = format!("{:>nc$} {}", line_number, line);
-            } 
+            }
             s
         })
         .collect();
 
     (output, line_number)
+}
+
+fn append_eol_character(data: Vec<String>) -> Vec<String> {
+    data.into_iter().map(|x| format!("{}$", x)).collect()
 }
 
 fn remove_consecutive_empty_lines(
@@ -96,6 +94,9 @@ fn generate_output(
     let mut last_line_number = last_line_number;
     if output_flags.squeeze_blank {
         (output, empty_line_counter) = remove_consecutive_empty_lines(output, empty_line_counter);
+    }
+    if output_flags.show_ends {
+        output = append_eol_character(output);
     }
     if output_flags.number_noblank {
         (output, last_line_number) = append_line_number(output, true, last_line_number);
@@ -154,7 +155,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         numbers: matches.get_flag("numbers"),
         squeeze_blank: matches.get_flag("squeeze-blank"),
         number_noblank: matches.get_flag("number-noblank"),
-        show_ends: matches.get_flag("show-ends") };
+        show_ends: matches.get_flag("show-ends"),
+    };
 
     // A counter of how many empty lines at the end of the prev. file
     let mut empty_line_counter = 0;
