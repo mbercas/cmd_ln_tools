@@ -95,13 +95,13 @@ fn generate_output(
     if output_flags.squeeze_blank {
         (output, empty_line_counter) = remove_consecutive_empty_lines(output, empty_line_counter);
     }
-    if output_flags.show_ends {
-        output = append_eol_character(output);
-    }
     if output_flags.number_noblank {
         (output, last_line_number) = append_line_number(output, true, last_line_number);
     } else if output_flags.numbers {
         (output, last_line_number) = append_line_number(output, false, last_line_number);
+    }
+    if output_flags.show_ends {
+        output = append_eol_character(output);
     }
 
     (output, empty_line_counter, last_line_number)
@@ -291,6 +291,22 @@ mod cat_tests {
         let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
         assert_eq!(1, mod_lines.0.len()); // one line of the repeated chunk remains
         assert_eq!(N, mod_lines.1);
+    }
+
+    #[test]
+    fn append_eol_character_check() {
+        let orig_lines = vec![];
+        let mod_lines = append_eol_character(orig_lines);
+        assert_eq!(0, mod_lines.len());
+
+        const N: usize = 3;
+        let orig_lines = generate_test_vector(N);
+        let mod_lines = append_eol_character(orig_lines);
+        assert_eq!(N, mod_lines.len());
+
+        for (i, line) in mod_lines.iter().enumerate() {
+            assert_eq!(format!("Line {}$", i + 1), *line);
+        }
     }
 
     #[test]
