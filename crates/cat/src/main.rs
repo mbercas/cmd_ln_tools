@@ -4,6 +4,21 @@ use std::error::Error;
 use std::fs;
 use std::io::{self, Stdin, Write};
 
+
+
+
+
+
+/// A struct to store the parsed flags from the command line
+#[derive(Debug)]
+struct OutputFlags {
+    numbers: bool,
+    squeeze_blank: bool,
+    number_noblank: bool,
+    show_ends: bool,
+}
+
+
 /// Takes a strins that may have  one or
 /// more EOL characters and separaes the lines to return a vector
 /// of single line strigns.
@@ -71,9 +86,7 @@ fn print_output(data: Vec<String>) {
 
 fn generate_output(
     data: Vec<String>,
-    squeeze_blank: bool,
-    number_noblank: bool,
-    numbers: bool,
+    output_flags: &OutputFlags,
     empty_line_counter: usize,
     last_line_number: usize,
 ) -> (Vec<String>, usize, usize) {
@@ -81,12 +94,12 @@ fn generate_output(
     let mut output = data;
     let mut empty_line_counter = empty_line_counter;
     let mut last_line_number = last_line_number;
-    if squeeze_blank {
+    if output_flags.squeeze_blank {
         (output, empty_line_counter) = remove_consecutive_empty_lines(output, empty_line_counter);
     }
-    if number_noblank {
+    if output_flags.number_noblank {
         (output, last_line_number) = append_line_number(output, true, last_line_number);
-    } else if numbers {
+    } else if output_flags.numbers {
         (output, last_line_number) = append_line_number(output, false, last_line_number);
     }
 
@@ -118,6 +131,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .action(ArgAction::SetTrue)
                 .help("number nonempty output lines, overrides -n"),
         )
+        .arg(
+            Arg::new("show-ends")
+                .short('E')
+                .long("show-ends")
+                .action(ArgAction::SetTrue)
+                .help("display $ at the end of each line"),
+        )
         .get_matches();
 
     let input_files = matches
@@ -130,9 +150,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut contents: Vec<String> = vec![];
     let mut errors = vec![];
 
-    // A counter of how many empty lines at the end of the prev. file
+    let output_flags: OutputFlags = OutputFlags {
+        numbers: matches.get_flag("numbers"),
+        squeeze_blank: matches.get_flag("squeeze-blank"),
+        number_noblank: matches.get_flag("number-noblank"),
+        show_ends: matches.get_flag("show-ends") };
 
+    // A counter of how many empty lines at the end of the prev. file
     let mut empty_line_counter = 0;
+    //tmp A counter of the last printed line number
     let mut last_line_number = 0;
     for fname in input_files.iter() {
         if fname != &"-" {
@@ -140,9 +166,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(data) => {
                     let output = generate_output(
                         unwrap_lines(data),
-                        matches.get_flag("squeeze-blank"),
-                        matches.get_flag("number-noblank"),
-                        matches.get_flag("numbers"),
+                        &output_flags,
                         empty_line_counter,
                         last_line_number,
                     );
@@ -161,9 +185,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             for line in stdin.lines() {
                 let output = generate_output(
                     unwrap_lines(line.unwrap()),
-                    matches.get_flag("squeeze-blank"),
-                    matches.get_flag("number-noblank"),
-                    matches.get_flag("numbers"),
+                    &output_flags,
                     empty_line_counter,
                     last_line_number,
                 );
