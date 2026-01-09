@@ -68,6 +68,19 @@ fn concatenate_file_contents_and_number() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[test]
+fn read_stdin() -> Result<(), Box<dyn std::error::Error>> {
+    let mut cmd = cargo_bin_cmd!("cat");
+
+    cmd.arg("-n").arg("-");
+    cmd.write_stdin("Line 1\nLine 2");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("1 Line 1\n2 Line 2"));
+
+    Ok(())
+}
+
+#[test]
 fn file_doesnt_exist() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = cargo_bin_cmd!("cat");
 

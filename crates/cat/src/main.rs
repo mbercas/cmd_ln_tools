@@ -2,7 +2,7 @@ use clap::{Arg, ArgAction, command};
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Stdin, Write};
 
 /// Takes a strins that may have  one or
 /// more EOL characters and separaes the lines to return a vector
@@ -137,10 +137,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut empty_line_counter = 0;
     let mut last_line_number = 0;
     for fname in input_files.iter() {
-        match fs::read_to_string(fname) {
-            Ok(data) => {
+        if fname != &"-" {
+            match fs::read_to_string(fname) {
+                Ok(data) => {
+                    let output = generate_output(
+                        unwrap_lines(data),
+                        matches.get_flag("squeeze-blank"),
+                        matches.get_flag("number-noblank"),
+                        matches.get_flag("numbers"),
+                        empty_line_counter,
+                        last_line_number,
+                    );
+                    contents = output.0;
+                    empty_line_counter = output.1;
+                    last_line_number = output.2;
+                    print_output(contents);
+                }
+                Err(e) => {
+                    eprintln!("Error reading file {fname}: {e}");
+                    errors.push((fname, e));
+                }
+            }
+        } else {
+            let stdin: Stdin = io::stdin();
+            for line in stdin.lines() {
                 let output = generate_output(
-                    unwrap_lines(data),
+                    unwrap_lines(line.unwrap()),
                     matches.get_flag("squeeze-blank"),
                     matches.get_flag("number-noblank"),
                     matches.get_flag("numbers"),
@@ -151,10 +173,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 empty_line_counter = output.1;
                 last_line_number = output.2;
                 print_output(contents);
-            }
-            Err(e) => {
-                eprintln!("Error reading file {fname}: {e}");
-                errors.push((fname, e));
             }
         }
     }
@@ -199,15 +217,15 @@ mod cat_tests {
         let unwrapped = unwrap_lines("".to_owned());
         assert_eq!(1, unwrapped.len());
 
-        let N: usize = 3;
-        let orig_lines = generate_test_string(N);
+        let n: usize = 3;
+        let orig_lines = generate_test_string(n);
         let unwrapped = unwrap_lines(orig_lines);
-        assert_eq!(N, unwrapped.len());
+        assert_eq!(n, unwrapped.len());
 
-        let N = 100;
-        let orig_lines = generate_test_string(N);
+        let n = 100;
+        let orig_lines = generate_test_string(n);
         let unwrapped = unwrap_lines(orig_lines);
-        assert_eq!(N, unwrapped.len());
+        assert_eq!(n, unwrapped.len());
     }
 
     #[test]
