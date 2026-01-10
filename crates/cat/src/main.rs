@@ -1,4 +1,4 @@
-use clap::{Arg, ArgAction, command};
+use clap::{command, Arg, ArgAction};
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -11,6 +11,7 @@ struct OutputFlags {
     squeeze_blank: bool,
     number_noblank: bool,
     show_ends: bool,
+    show_tabs: bool,
 }
 
 /// Takes a strins that may have  one or
@@ -18,6 +19,21 @@ struct OutputFlags {
 /// of single line strigns.
 fn unwrap_lines(data: &str) -> Vec<String> {
     data.split('\n').map(String::from).collect::<Vec<String>>()
+}
+
+/// Get a slice of string and replaces all tabs with ^I character
+fn replace_tabs(data: &str) -> String {
+    data.replace("\t", "^I")
+}
+
+/// Pre processes the string, does the replacements required and
+/// splits all lines into a vector of Strigs
+fn preprocess_line(data: &str, flags: &OutputFlags) -> Vec<String> {
+    if flags.show_tabs {
+        unwrap_lines(&replace_tabs(data))
+    } else {
+        unwrap_lines(data)
+    }
 }
 
 /// Appends a line number at the beggining of every line,
@@ -137,6 +153,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .action(ArgAction::SetTrue)
                 .help("Remove consecutive empty lines"),
         )
+        .arg(
+            Arg::new("show-tabs")
+                .short('T')
+                .long("show-tabs")
+                .action(ArgAction::SetTrue)
+                .help("display TAB character as ^I"),
+        )
         .get_matches();
 
     let mut input_files = matches
@@ -159,6 +182,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         squeeze_blank: matches.get_flag("squeeze-blank"),
         number_noblank: matches.get_flag("number-noblank"),
         show_ends: matches.get_flag("show-ends"),
+        show_tabs: matches.get_flag("show-tabs"),
     };
 
     // A counter of how many empty lines at the end of the prev. file
@@ -170,7 +194,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match fs::read_to_string(fname) {
                 Ok(data) => {
                     let output = generate_output(
-                        &unwrap_lines(&data),
+                        &preprocess_line(&data, &output_flags),
                         &output_flags,
                         empty_line_counter,
                         last_line_number,
@@ -189,7 +213,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let stdin: Stdin = io::stdin();
             for line in stdin.lines() {
                 let output = generate_output(
-                    &unwrap_lines(&line.unwrap()),
+                    &preprocess_line(&line.unwrap(), &output_flags),
                     &output_flags,
                     empty_line_counter,
                     last_line_number,
@@ -235,6 +259,26 @@ mod cat_tests {
             lines.push(format!("Line {}", i).to_owned());
         }
         lines
+    }
+
+    #[test]
+    fn replace_tabs_check() {
+        // do nothing on empty strings
+        let empty = "";
+        assert!(empty.is_empty());
+        let empty = replace_tabs(empty);
+        assert!(empty.is_empty());
+
+        // Do nothing to strings with no tabs
+        let no_tabs = "One string without tabs";
+        let replaced = replace_tabs(no_tabs);
+        assert_eq!(no_tabs, replaced);
+
+        // Replace tabs wit ^I
+        let with_tabs = "One\tstring\twithout\ttabs";
+        let no_tabs = "One^Istring^Iwithout^Itabs";
+        let replaced = replace_tabs(with_tabs);
+        assert_eq!(no_tabs, replaced);
     }
 
     #[test]

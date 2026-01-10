@@ -103,6 +103,23 @@ mod cat_functional_tests {
     }
 
     #[test]
+    fn replace_tabs() -> Result<(), Box<dyn std::error::Error>> {
+        let file1 = assert_fs::NamedTempFile::new("first_file.txt")?;
+        let file2 = assert_fs::NamedTempFile::new("second_file.txt")?;
+        file1.write_str("Line\t1\nLine\t2")?;
+        file2.write_str("Line\t3\nLine\t4")?;
+
+        let mut cmd = cargo_bin_cmd!("cat");
+
+        cmd.arg("-Tn").arg(file1.path()).arg(file2.path());
+        cmd.assert().success().stdout(predicate::str::contains(
+            "1 Line^I1\n2 Line^I2\n3 Line^I3\n4 Line^I4",
+        ));
+
+        Ok(())
+    }
+
+    #[test]
     fn read_stdin() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = cargo_bin_cmd!("cat");
 
