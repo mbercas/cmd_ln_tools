@@ -216,8 +216,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     print_output(&contents);
                 }
                 Err(e) => {
-                    eprintln!("Error reading file {fname}: {e}");
-                    errors.push((fname, e));
+                    let err_msg = format!("Error reading file {fname}");
+                    errors.push((err_msg, e));
                 }
             }
         } else {
@@ -240,8 +240,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     if errors.is_empty() {
         Ok(())
     } else {
-        // Err(Box::new(Err(errors[0].1.into())))
-        Err("Errors reported to stderr".into())
+        let error_output = String::from("Errors were reporting while procesing command.");
+        for (idx, e) in errors.into_iter().enumerate() {
+            eprintln!("\t Err {}  {}: {}", idx, e.0, e.1);
+        }
+        Err(error_output.into())
     }
 }
 
