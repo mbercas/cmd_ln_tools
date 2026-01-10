@@ -16,7 +16,7 @@ struct OutputFlags {
 /// Takes a strins that may have  one or
 /// more EOL characters and separaes the lines to return a vector
 /// of single line strigns.
-fn unwrap_lines(data: String) -> Vec<String> {
+fn unwrap_lines(data: &str) -> Vec<String> {
     data.split('\n').map(String::from).collect::<Vec<String>>()
 }
 
@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match fs::read_to_string(fname) {
                 Ok(data) => {
                     let output = generate_output(
-                        &unwrap_lines(data),
+                        &unwrap_lines(&data),
                         &output_flags,
                         empty_line_counter,
                         last_line_number,
@@ -184,7 +184,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let stdin: Stdin = io::stdin();
             for line in stdin.lines() {
                 let output = generate_output(
-                    &unwrap_lines(line.unwrap()),
+                    &unwrap_lines(&line.unwrap()),
                     &output_flags,
                     empty_line_counter,
                     last_line_number,
@@ -234,17 +234,17 @@ mod cat_tests {
 
     #[test]
     fn unwrap_lines_() {
-        let unwrapped = unwrap_lines("".to_owned());
+        let unwrapped = unwrap_lines("");
         assert_eq!(1, unwrapped.len());
 
         let n: usize = 3;
         let orig_lines = generate_test_string(n);
-        let unwrapped = unwrap_lines(orig_lines);
+        let unwrapped = unwrap_lines(&orig_lines);
         assert_eq!(n, unwrapped.len());
 
         let n = 100;
         let orig_lines = generate_test_string(n);
-        let unwrapped = unwrap_lines(orig_lines);
+        let unwrapped = unwrap_lines(&orig_lines);
         assert_eq!(n, unwrapped.len());
     }
 
