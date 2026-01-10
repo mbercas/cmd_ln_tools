@@ -24,7 +24,7 @@ fn unwrap_lines(data: String) -> Vec<String> {
 /// if the ignore_blanks flag is set, does not add a number to
 /// empty lines
 fn append_line_number(
-    data: Vec<String>,
+    data: &[String],
     ignore_blanks: bool,
     starting_number: usize,
 ) -> (Vec<String>, usize) {
@@ -47,18 +47,15 @@ fn append_line_number(
     (output, line_number)
 }
 
-fn append_eol_character(data: Vec<String>) -> Vec<String> {
-    data.into_iter().map(|x| format!("{}$", x)).collect()
+fn append_eol_character(data: &[String]) -> Vec<String> {
+    data.iter().map(|x| format!("{}$", x)).collect()
 }
 
-fn remove_consecutive_empty_lines(
-    data: Vec<String>,
-    prev_emptylines: usize,
-) -> (Vec<String>, usize) {
+fn remove_consecutive_empty_lines(data: &[String], prev_emptylines: usize) -> (Vec<String>, usize) {
     let mut empty_line_counter = prev_emptylines;
 
-    let output = data
-        .into_iter()
+    let output: Vec<String> = data
+        .iter()
         .filter(|line| {
             if line.is_empty() {
                 empty_line_counter += 1;
@@ -67,12 +64,13 @@ fn remove_consecutive_empty_lines(
             }
             empty_line_counter < 2
         })
+        .map(|x| x.to_owned())
         .collect();
 
     (output, empty_line_counter)
 }
 
-fn print_output(data: Vec<String>) {
+fn print_output(data: &[String]) {
     let stdout = io::stdout();
     let mut handle = io::BufWriter::new(stdout);
     for lines in data.iter() {
@@ -83,25 +81,25 @@ fn print_output(data: Vec<String>) {
 }
 
 fn generate_output(
-    data: Vec<String>,
+    data: &[String],
     output_flags: &OutputFlags,
     empty_line_counter: usize,
     last_line_number: usize,
 ) -> (Vec<String>, usize, usize) {
     // Split lines with mulitple end of line into separate vector entries
-    let mut output = data;
+    let mut output = data.to_owned();
     let mut empty_line_counter = empty_line_counter;
     let mut last_line_number = last_line_number;
     if output_flags.squeeze_blank {
-        (output, empty_line_counter) = remove_consecutive_empty_lines(output, empty_line_counter);
+        (output, empty_line_counter) = remove_consecutive_empty_lines(&output, empty_line_counter);
     }
     if output_flags.number_noblank {
-        (output, last_line_number) = append_line_number(output, true, last_line_number);
+        (output, last_line_number) = append_line_number(&output, true, last_line_number);
     } else if output_flags.numbers {
-        (output, last_line_number) = append_line_number(output, false, last_line_number);
+        (output, last_line_number) = append_line_number(&output, false, last_line_number);
     }
     if output_flags.show_ends {
-        output = append_eol_character(output);
+        output = append_eol_character(&output);
     }
 
     (output, empty_line_counter, last_line_number)
@@ -109,7 +107,7 @@ fn generate_output(
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = command!()
-        .about("Concatenate FILE(s) to standard output")
+        .about("Concatenate FILE(s) to standard output.\n\nWith no FILE, or when file is -, read standard input.")
         .arg(Arg::new("FILE").action(ArgAction::Append))
         .arg(
             Arg::new("numbers")
@@ -167,7 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match fs::read_to_string(fname) {
                 Ok(data) => {
                     let output = generate_output(
-                        unwrap_lines(data),
+                        &unwrap_lines(data),
                         &output_flags,
                         empty_line_counter,
                         last_line_number,
@@ -175,7 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     contents = output.0;
                     empty_line_counter = output.1;
                     last_line_number = output.2;
-                    print_output(contents);
+                    print_output(&contents);
                 }
                 Err(e) => {
                     eprintln!("Error reading file {fname}: {e}");
@@ -186,7 +184,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let stdin: Stdin = io::stdin();
             for line in stdin.lines() {
                 let output = generate_output(
-                    unwrap_lines(line.unwrap()),
+                    &unwrap_lines(line.unwrap()),
                     &output_flags,
                     empty_line_counter,
                     last_line_number,
@@ -194,7 +192,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 contents = output.0;
                 empty_line_counter = output.1;
                 last_line_number = output.2;
-                print_output(contents);
+                print_output(&contents);
             }
         }
     }
@@ -256,7 +254,7 @@ mod cat_tests {
         const N: usize = 100;
         orig_lines = generate_test_vector(N);
 
-        let mod_lines = append_line_number(orig_lines, false, 0_usize);
+        let mod_lines = append_line_number(&orig_lines, false, 0_usize);
         assert_eq!(N, mod_lines.0.len());
         assert_eq!(N, mod_lines.1);
     }
@@ -267,7 +265,7 @@ mod cat_tests {
         const N: usize = 100;
         orig_lines = generate_test_vector(N);
 
-        let mod_lines = append_line_number(orig_lines, false, 0_usize);
+        let mod_lines = append_line_number(&orig_lines, false, 0_usize);
         for (i, line) in mod_lines.0.iter().enumerate() {
             let mut tokens = line.split_whitespace();
             assert_eq!(i + 1, tokens.next().unwrap().parse::<usize>().unwrap())
@@ -277,7 +275,7 @@ mod cat_tests {
     #[test]
     fn remove_consecutive_empty_lines_empty_input() {
         let orig_lines = vec![];
-        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        let mod_lines = remove_consecutive_empty_lines(&orig_lines, 0_usize);
         assert_eq!(0, mod_lines.0.len());
         assert_eq!(0, mod_lines.1);
 
@@ -288,7 +286,7 @@ mod cat_tests {
             orig_lines.push(String::from(""));
         }
 
-        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        let mod_lines = remove_consecutive_empty_lines(&orig_lines, 0_usize);
         assert_eq!(1, mod_lines.0.len()); // one line of the repeated chunk remains
         assert_eq!(N, mod_lines.1);
     }
@@ -296,12 +294,12 @@ mod cat_tests {
     #[test]
     fn append_eol_character_check() {
         let orig_lines = vec![];
-        let mod_lines = append_eol_character(orig_lines);
+        let mod_lines = append_eol_character(&orig_lines);
         assert_eq!(0, mod_lines.len());
 
         const N: usize = 3;
         let orig_lines = generate_test_vector(N);
-        let mod_lines = append_eol_character(orig_lines);
+        let mod_lines = append_eol_character(&orig_lines);
         assert_eq!(N, mod_lines.len());
 
         for (i, line) in mod_lines.iter().enumerate() {
@@ -319,14 +317,14 @@ mod cat_tests {
         }
 
         assert_eq!(N + 100, orig_lines.len());
-        let mod_lines = remove_consecutive_empty_lines(orig_lines, 0_usize);
+        let mod_lines = remove_consecutive_empty_lines(&orig_lines, 0_usize);
         assert_eq!(N + 1, mod_lines.0.len());
         assert_eq!(N, mod_lines.1);
 
         // calling the function again should not remove more lines, but should
         // report the emoty line at the end
 
-        let mod_lines = remove_consecutive_empty_lines(mod_lines.0, 0_usize);
+        let mod_lines = remove_consecutive_empty_lines(&mod_lines.0, 0_usize);
         assert_eq!(N + 1, mod_lines.0.len());
         assert_eq!(1, mod_lines.1);
     }
