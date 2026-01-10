@@ -1,4 +1,4 @@
-use clap::{command, Arg, ArgAction};
+use clap::{Arg, ArgAction, command};
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -110,20 +110,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .about("Concatenate FILE(s) to standard output.\n\nWith no FILE, or when file is -, read standard input.")
         .arg(Arg::new("FILE").action(ArgAction::Append))
         .arg(
-            Arg::new("numbers")
-                .short('n')
-                .long("numbers")
-                .action(ArgAction::SetTrue)
-                .help("Prepends line numbers to the output"),
-        )
-        .arg(
-            Arg::new("squeeze-blank")
-                .short('s')
-                .long("squeeze-blank")
-                .action(ArgAction::SetTrue)
-                .help("Remove consecutive empty lines"),
-        )
-        .arg(
             Arg::new("number-noblank")
                 .short('b')
                 .long("number-noblank")
@@ -136,6 +122,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .long("show-ends")
                 .action(ArgAction::SetTrue)
                 .help("display $ at the end of each line"),
+        )
+        .arg(
+            Arg::new("numbers")
+                .short('n')
+                .long("numbers")
+                .action(ArgAction::SetTrue)
+                .help("Prepends line numbers to the output"),
+        )
+        .arg(
+            Arg::new("squeeze-blank")
+                .short('s')
+                .long("squeeze-blank")
+                .action(ArgAction::SetTrue)
+                .help("Remove consecutive empty lines"),
         )
         .get_matches();
 
