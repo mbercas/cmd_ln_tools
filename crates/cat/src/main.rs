@@ -139,11 +139,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
         .get_matches();
 
-    let input_files = matches
+    let mut input_files = matches
         .get_many::<String>("FILE")
         .unwrap_or_default()
         .map(|v| v.as_str())
         .collect::<Vec<_>>();
+
+    // If no files were defined, force the use of stdin
+    if input_files.is_empty() {
+        input_files.push("-");
+    }
 
     // Iterate over the valid input files and load the contents into memory
     let mut contents: Vec<String> = vec![];
