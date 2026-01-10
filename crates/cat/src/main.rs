@@ -133,6 +133,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .help("number nonempty output lines, overrides -n"),
         )
         .arg(
+            Arg::new("show-all")
+                .short('A')
+                .long("show-all")
+                .action(ArgAction::SetTrue)
+                .help("equivalent to -nET"),
+        )
+        .arg(
             Arg::new("show-ends")
                 .short('E')
                 .long("show-ends")
@@ -177,13 +184,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut contents: Vec<String> = vec![];
     let mut errors = vec![];
 
-    let output_flags: OutputFlags = OutputFlags {
+    let mut output_flags: OutputFlags = OutputFlags {
         numbers: matches.get_flag("numbers"),
         squeeze_blank: matches.get_flag("squeeze-blank"),
         number_noblank: matches.get_flag("number-noblank"),
         show_ends: matches.get_flag("show-ends"),
         show_tabs: matches.get_flag("show-tabs"),
     };
+    if matches.get_flag("show-all") {
+        output_flags.show_ends = true;
+        output_flags.show_tabs = true;
+    }
 
     // A counter of how many empty lines at the end of the prev. file
     let mut empty_line_counter = 0;
