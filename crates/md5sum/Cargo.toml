@@ -1,0 +1,8 @@
+[package]
+name = "md5sum"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.54", features = ["cargo"] }
+md5 = "0.8.0"
