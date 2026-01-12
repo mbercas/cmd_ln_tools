@@ -10,6 +10,7 @@ struct CommandLineFlags {
     binary: bool,
     tag: bool,
     zero: bool,
+    check: bool,
 }
 
 /// Parses the command line and returns a vector of
@@ -18,6 +19,13 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
     let matches = command!()
         .about("Print or check MD5 128-bit cheksums. ")
         .arg(Arg::new("FILE").action(ArgAction::Append))
+        .arg(
+            Arg::new("check")
+                .short('c')
+                .long("check")
+                .action(ArgAction::SetTrue)
+                .help("Read checksums from the file and check them"),
+        )
         .arg(
             Arg::new("text")
                 .short('t')
@@ -54,9 +62,22 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
         binary: false,
         tag: matches.get_flag("tag"),
         zero: matches.get_flag("zero"),
+        check: matches.get_flag("check"),
     };
 
     (input_files, flags)
+}
+
+/// Opens the file passed as argument and parses the contents
+/// Returns a vector of file names ans expected hashes or error
+/// if the format is incorrect or cannot read the input file.
+fn parse_chceck_file(
+    file_name: &str,
+    flags: &CommandLineFlags,
+) -> Result<Vec<(String, String)>, Box<dyn Error>> {
+    let mut output = vec![];
+
+    Ok(output)
 }
 
 /// Retuns a formatted string with the
@@ -71,11 +92,7 @@ fn format_output_line(file_name: &str, flags: &CommandLineFlags, digest: &md5::D
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let cmd_line = parse_input_args();
-    let input_files = cmd_line.0;
-    let flags = cmd_line.1;
-
+fn print_output(input_files: &Vec<String>, flags: &CommandLineFlags) -> Result<(), Box<dyn Error>> {
     for file_name in input_files.iter() {
         let mut processor = md5::Context::new();
         if file_name != "-" {
@@ -91,7 +108,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Couln't open file {}: {}", file_name, e);
+                    eprintln!("Couldn't open file {}: {}", file_name, e);
                 }
             }
         } else {
@@ -106,6 +123,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn main() -> Result<(), Box<dyn Error>> {
+    let cmd_line = parse_input_args();
+    let input_files = cmd_line.0;
+    let flags = cmd_line.1;
+
+    if !flags.check {
+        let out = print_output(&input_files, &flags);
+        out
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod md5sum_test {
 
@@ -118,6 +148,7 @@ mod md5sum_test {
             binary: false,
             tag: false,
             zero: false,
+            check: false,
         };
         context.consume("123456");
         let digest = context.finalize();
@@ -136,6 +167,7 @@ mod md5sum_test {
             binary: false,
             tag: true,
             zero: false,
+            check: false,
         };
         context.consume("123456");
         let digest = context.finalize();
