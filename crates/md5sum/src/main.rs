@@ -1,4 +1,4 @@
-use clap::{command, Arg, ArgAction};
+use clap::{Arg, ArgAction, command};
 use std::error::Error;
 use std::fs;
 use std::io::{self, Stdin};
@@ -9,6 +9,7 @@ use std::io::{self, Stdin};
 struct CommandLineFlags {
     binary: bool,
     tag: bool,
+    zero: bool,
 }
 
 /// Parses the command line and returns a vector of
@@ -22,13 +23,20 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
                 .short('t')
                 .long("text")
                 .action(ArgAction::SetTrue)
-                .help("read in text mode (default)"),
+                .help("Read in text mode (default)"),
         )
         .arg(
             Arg::new("tag")
                 .long("tag")
                 .action(ArgAction::SetTrue)
                 .help("Create a BSD style checksum"),
+        )
+        .arg(
+            Arg::new("zero")
+                .short('z')
+                .long("zero")
+                .action(ArgAction::SetTrue)
+                .help("End each output line with NUL, no newline, and disable file name scaping"),
         )
         .get_matches();
 
@@ -45,6 +53,7 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
     let flags = CommandLineFlags {
         binary: false,
         tag: matches.get_flag("tag"),
+        zero: matches.get_flag("zero"),
     };
 
     (input_files, flags)
@@ -53,9 +62,9 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
 /// Retuns a formatted string with the
 /// file name a * if is binary input and the hash,
 /// if tags is to True generated BDS style output
-fn format_output_line(file_name: &str, is_binary: bool, tag: bool, digest: &md5::Digest) -> String {
-    let binary_char = if is_binary { "*" } else { " " }.to_string();
-    if tag {
+fn format_output_line(file_name: &str, flags: &CommandLineFlags, digest: &md5::Digest) -> String {
+    let binary_char = if flags.binary { "*" } else { " " }.to_string();
+    if flags.tag {
         format!("MD5 ({}) = {:x}", file_name, digest)
     } else {
         format!("{:x} {}{}", digest, binary_char, file_name)
@@ -73,12 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match fs::read_to_string(file_name) {
                 Ok(data) => {
                     processor.consume(data);
-                    let output = format_output_line(
-                        file_name,
-                        flags.binary,
-                        flags.tag,
-                        &processor.finalize(),
-                    );
+                    let output = format_output_line(file_name, &flags, &processor.finalize());
                     println!("{output}");
                 }
                 Err(e) => {
@@ -90,8 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             for line in stdin.lines() {
                 processor.consume(&line?);
             }
-            let output =
-                format_output_line(file_name, flags.binary, flags.tag, &processor.finalize());
+            let output = format_output_line(file_name, &flags, &processor.finalize());
             println!("{output}");
         }
     }
@@ -100,29 +103,42 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod md5sum_test {
+
     use super::*;
 
     #[test]
     fn format_output_line_non_bsd() {
         let mut context = md5::Context::new();
+        let mut flags = CommandLineFlags {
+            binary: false,
+            tag: false,
+            zero: false,
+        };
         context.consume("123456");
         let digest = context.finalize();
-        let test1 = format_output_line("file_name", false, false, &digest);
+        let test1 = format_output_line("file_name", &flags, &digest);
         assert_eq!(test1, format!("{:x}  {}", &digest, "file_name"));
 
-        let test2 = format_output_line("file_name", true, false, &digest);
+        flags.binary = true;
+        let test2 = format_output_line("file_name", &flags, &digest);
         assert_eq!(test2, format!("{:x} *{}", &digest, "file_name"));
     }
 
     #[test]
     fn format_output_line_bsd() {
         let mut context = md5::Context::new();
+        let mut flags = CommandLineFlags {
+            binary: false,
+            tag: true,
+            zero: false,
+        };
         context.consume("123456");
         let digest = context.finalize();
-        let test1 = format_output_line("file_name", false, true, &digest);
+        let test1 = format_output_line("file_name", &flags, &digest);
         assert_eq!(test1, format!("MD5 ({}) = {:x}", "file_name", &digest));
 
-        let test2 = format_output_line("file_name", true, true, &digest);
+        flags.binary = true;
+        let test2 = format_output_line("file_name", &flags, &digest);
         assert_eq!(test2, format!("MD5 ({}) = {:x}", "file_name", &digest));
     }
 }
