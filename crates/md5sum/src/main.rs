@@ -83,7 +83,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(data) => {
                     processor.consume(data);
                     let output = format_output_line(file_name, &flags, &processor.finalize());
-                    println!("{output}");
+                    // If zero don't print EOL and add NUL
+                    if flags.zero {
+                        print! {"{output}\0"};
+                    } else {
+                        println!("{output}");
+                    }
                 }
                 Err(e) => {
                     eprintln!("Couln't open file {}: {}", file_name, e);
