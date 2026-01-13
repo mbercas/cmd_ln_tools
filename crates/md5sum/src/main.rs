@@ -1,7 +1,7 @@
-use clap::{Arg, ArgAction, command};
+use clap::{command, Arg, ArgAction};
 use std::error::Error;
 use std::fs;
-use std::io::{self, Stdin};
+use std::io::{self, BufReader, Stdin};
 
 /// Struct to hold the command line status
 ///
@@ -19,6 +19,13 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
     let matches = command!()
         .about("Print or check MD5 128-bit cheksums. ")
         .arg(Arg::new("FILE").action(ArgAction::Append))
+        .arg(
+            Arg::new("binary")
+                .short('b')
+                .long("binary")
+                .action(ArgAction::SetTrue)
+                .help("Read in binary mode"),
+        )
         .arg(
             Arg::new("check")
                 .short('c')
@@ -59,7 +66,7 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
     }
 
     let flags = CommandLineFlags {
-        binary: false,
+        binary: matches.get_flag("binary"),
         tag: matches.get_flag("tag"),
         zero: matches.get_flag("zero"),
         check: matches.get_flag("check"),
@@ -71,7 +78,7 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
 /// Opens the file passed as argument and parses the contents
 /// Returns a vector of file names ans expected hashes or error
 /// if the format is incorrect or cannot read the input file.
-fn parse_chceck_file(
+fn parse_check_file(
     file_name: &str,
     flags: &CommandLineFlags,
 ) -> Result<Vec<(String, String)>, Box<dyn Error>> {
@@ -96,20 +103,31 @@ fn print_output(input_files: &Vec<String>, flags: &CommandLineFlags) -> Result<(
     for file_name in input_files.iter() {
         let mut processor = md5::Context::new();
         if file_name != "-" {
-            match fs::read_to_string(file_name) {
-                Ok(data) => {
-                    processor.consume(data);
-                    let output = format_output_line(file_name, &flags, &processor.finalize());
-                    // If zero don't print EOL and add NUL
-                    if flags.zero {
-                        print! {"{output}\0"};
-                    } else {
-                        println!("{output}");
+            if !flags.binary {
+                match fs::read_to_string(file_name) {
+                    Ok(data) => {
+                        processor.consume(data);
+                    }
+                    Err(e) => {
+                        eprintln!("Couldn't open file {}: {}", file_name, e);
                     }
                 }
-                Err(e) => {
-                    eprintln!("Couldn't open file {}: {}", file_name, e);
+            } else {
+                match fs::read(file_name) {
+                    Ok(bytes) => {
+                        processor.consume(bytes);
+                    }
+                    Err(e) => {
+                        eprintln!("Couldn't open file {} in binary mode: {}", file_name, e);
+                    }
                 }
+            }
+            let output = format_output_line(file_name, &flags, &processor.finalize());
+            // If zero don't print EOL and add NUL
+            if flags.zero {
+                print! {"{output}\0"};
+            } else {
+                println!("{output}");
             }
         } else {
             let stdin: Stdin = io::stdin();

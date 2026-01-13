@@ -63,6 +63,25 @@ mod md5sum_functional_tests {
             .success()
             .stdout(predicate::str::contains(output));
 
+        let mut cmd = cargo_bin_cmd!("md5sum");
+
+        let mut output = format!(
+            "{} *{:?}\0{} *{:?}",
+            md5sum1,
+            file1.path(),
+            md5sum2,
+            file2.path()
+        );
+        output = output.replace("\"", "");
+
+        cmd.arg("--zero")
+            .arg("-b")
+            .arg(file1.path())
+            .arg(file2.path());
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains(output));
+
         Ok(())
     }
 
