@@ -99,7 +99,7 @@ fn format_output_line(file_name: &str, flags: &CommandLineFlags, digest: &md5::D
     }
 }
 
-fn print_output(input_files: &Vec<String>, flags: &CommandLineFlags) -> Result<(), Box<dyn Error>> {
+fn print_output(input_files: &[String], flags: &CommandLineFlags) -> Result<(), Box<dyn Error>> {
     for file_name in input_files.iter() {
         let mut processor = md5::Context::new();
         if file_name != "-" {
