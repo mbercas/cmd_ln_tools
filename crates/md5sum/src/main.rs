@@ -1,4 +1,5 @@
 use clap::{command, Arg, ArgAction};
+use regex::Regex;
 use std::error::Error;
 use std::fs;
 use std::io::{self, BufReader, Stdin};
@@ -78,11 +79,49 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
 /// Opens the file passed as argument and parses the contents
 /// Returns a vector of file names ans expected hashes or error
 /// if the format is incorrect or cannot read the input file.
-fn parse_check_file(
-    file_name: &str,
-    flags: &CommandLineFlags,
-) -> Result<Vec<(String, String)>, Box<dyn Error>> {
-    let mut output = vec![];
+// fn parse_check_file(
+//     file_name: &str,
+//     flags: &CommandLineFlags,
+// ) -> Result<Vec<CheckLine>, Box<dyn Error>> {
+//     let mut output = vec![];
+//     match fs::read_to_string(file_name) {
+//         Ok(data) => {
+//             for line in data.lines() {
+//                 match parse_line(line) {
+//                     Ok(check_line) => {
+//                         output.push(check_line);
+//                     }
+//                     Err(e) => Err(e.into()),
+//                 }
+//             }
+//             Ok(output)
+//         }
+//         Err(e) => Err(e.into()),
+//     }
+// }
+
+#[derive(Debug, PartialEq)]
+struct CheckLine {
+    file_name: String,
+    binary: bool,
+    hash: String,
+}
+
+/// Parses a lines with the following pattern
+/// 32 char hexadecima + space + [space|*] + str
+fn parse_line(line: &str) -> Result<CheckLine, Box<dyn Error>> {
+    let re = Regex::new(r"^([0-9a-fA-F]{32}) ([ |\*])([^\s\*].+)$").unwrap();
+    let Some(caps) = re.captures(line) else {
+        return Err(format!("Cannot parse {}", line).into());
+    };
+    let is_binary = if &caps[2] == "*" { true } else { false };
+    let output = CheckLine {
+        file_name: caps[3].to_owned(),
+        binary: is_binary,
+        hash: caps[1].to_owned(),
+    };
+
+    eprintln!("{:#?}", output);
 
     Ok(output)
 }
@@ -195,5 +234,38 @@ mod md5sum_test {
         flags.binary = true;
         let test2 = format_output_line("file_name", &flags, &digest);
         assert_eq!(test2, format!("MD5 ({}) = {:x}", "file_name", &digest));
+    }
+
+    #[test]
+    fn parse_line_correct_line() {
+        let line_1 = "4e7bb796c99cf98ae40b32b644119c74  src/main.rs";
+        let line_2 = "4e7bb796c99cf98ae40b32b644119c74 *src/main.rs";
+
+        let output_1 = parse_line(line_1).unwrap();
+        let output_2 = parse_line(line_2).unwrap();
+
+        assert_eq!("4e7bb796c99cf98ae40b32b644119c74", output_1.hash);
+        assert_eq!("4e7bb796c99cf98ae40b32b644119c74", output_2.hash);
+
+        assert!(!output_1.binary);
+        assert!(output_2.binary);
+
+        assert_eq!("src/main.rs", output_1.file_name);
+        assert_eq!("src/main.rs", output_2.file_name);
+    }
+
+    #[test]
+    fn parse_line_return_error() {
+        let line_1 = "4e9cf98ae40b32b644119c74  src/main.rs"; // hash is too short
+        let line_2 = "4e7bb796c99cf98ae40b32b644119c74 &src/main.rs"; // wrong binary symbol
+        let line_3 = "4e7bb796c99cf98ae40b32b644119c74   src/main.rs"; // too many spaces
+        let line_4 = "4e7bb796c99cf98ae40b32b644119c74  *src/main.rs"; // two spaces and *
+        let line_5 = "4e7bb796c99cf98ae40b32b644119c74   "; // missing file name
+
+        assert!(parse_line(line_1).is_err());
+        assert!(parse_line(line_2).is_err());
+        assert!(parse_line(line_3).is_err());
+        assert!(parse_line(line_4).is_err());
+        assert!(parse_line(line_5).is_err());
     }
 }
