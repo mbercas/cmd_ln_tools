@@ -79,43 +79,46 @@ fn parse_input_args() -> (Vec<String>, CommandLineFlags) {
 /// Opens the file passed as argument and parses the contents
 /// Returns a vector of file names ans expected hashes or error
 /// if the format is incorrect or cannot read the input file.
-// fn parse_check_file(
-//     file_name: &str,
-//     flags: &CommandLineFlags,
-// ) -> Result<Vec<CheckLine>, Box<dyn Error>> {
-//     let mut output = vec![];
-//     match fs::read_to_string(file_name) {
-//         Ok(data) => {
-//             for line in data.lines() {
-//                 match parse_line(line) {
-//                     Ok(check_line) => {
-//                         output.push(check_line);
-//                     }
-//                     Err(e) => Err(e.into()),
-//                 }
-//             }
-//             Ok(output)
-//         }
-//         Err(e) => Err(e.into()),
-//     }
-// }
+fn parse_check_file(file_name: &str) -> Result<Vec<Md5Record>, Box<dyn Error>> {
+    let mut output = vec![];
+    match fs::read_to_string(file_name) {
+        Ok(data) => {
+            for (idx, line) in data.lines().enumerate() {
+                match parse_line(line) {
+                    Ok(check_line) => {
+                        output.push(check_line);
+                    }
+                    Err(e) => {
+                        eprintln!("{}::{} Error parsing line.", file_name, idx + 1)
+                    }
+                }
+            }
+            if output.is_empty() {
+                Ok(output)
+            } else {
+                Err(format!("Couldn't parse enties in file {}", file_name).into())
+            }
+        }
+        Err(e) => Err(e.into()),
+    }
+}
 
 #[derive(Debug, PartialEq)]
-struct CheckLine {
+struct Md5Record {
     file_name: String,
     binary: bool,
     hash: String,
 }
 
 /// Parses a lines with the following pattern
-/// 32 char hexadecima + space + [space|*] + str
-fn parse_line(line: &str) -> Result<CheckLine, Box<dyn Error>> {
+/// 32 char hexadecimal + space + [space|*] + str
+fn parse_line(line: &str) -> Result<Md5Record, Box<dyn Error>> {
     let re = Regex::new(r"^([0-9a-fA-F]{32}) ([ |\*])([^\s\*].+)$").unwrap();
     let Some(caps) = re.captures(line) else {
         return Err(format!("Cannot parse {}", line).into());
     };
     let is_binary = if &caps[2] == "*" { true } else { false };
-    let output = CheckLine {
+    let output = Md5Record {
         file_name: caps[3].to_owned(),
         binary: is_binary,
         hash: caps[1].to_owned(),
@@ -126,58 +129,100 @@ fn parse_line(line: &str) -> Result<CheckLine, Box<dyn Error>> {
     Ok(output)
 }
 
+// fn check(file_name: &str) -> Result<(), Box<dyn Error>> {
+//     match parse_check_file(file_name) {
+//         Ok(input_lines) => {
+//             for line in input_lines {
+
+//             }
+//         }
+//     }
+//     Ok(())
+// }
+
+fn get_md5_record(file_name: &str, flags: &CommandLineFlags) -> Result<Md5Record, Box<dyn Error>> {
+    let mut processor = md5::Context::new();
+    if !flags.binary {
+        match fs::read_to_string(file_name) {
+            Ok(data) => {
+                processor.consume(data);
+            }
+            Err(e) => {
+                eprintln!("Couldn't open file {}: {}", file_name, e);
+            }
+        }
+    } else {
+        match fs::read(file_name) {
+            Ok(bytes) => {
+                processor.consume(bytes);
+            }
+            Err(e) => {
+                eprintln!("Couldn't open file {} in binary mode: {}", file_name, e);
+            }
+        }
+    }
+    Ok(Md5Record {
+        file_name: file_name.to_owned(),
+        binary: flags.binary,
+        hash: format!("{:x}", processor.finalize()),
+    })
+}
+
 /// Retuns a formatted string with the
 /// file name a * if is binary input and the hash,
 /// if tags is to True generated BDS style output
-fn format_output_line(file_name: &str, flags: &CommandLineFlags, digest: &md5::Digest) -> String {
-    let binary_char = if flags.binary { "*" } else { " " }.to_string();
-    if flags.tag {
-        format!("MD5 ({}) = {:x}", file_name, digest)
+fn format_output_line(md5_record: &Md5Record, tag: bool) -> String {
+    let binary_char = if md5_record.binary { "*" } else { " " }.to_string();
+    if tag {
+        format!("MD5 ({}) = {}", md5_record.file_name, md5_record.hash)
     } else {
-        format!("{:x} {}{}", digest, binary_char, file_name)
+        format!(
+            "{} {}{}",
+            md5_record.hash, binary_char, md5_record.file_name
+        )
     }
 }
 
 fn print_output(input_files: &[String], flags: &CommandLineFlags) -> Result<(), Box<dyn Error>> {
+    let mut error_counter = 0;
+    let mut output = String::new();
     for file_name in input_files.iter() {
-        let mut processor = md5::Context::new();
         if file_name != "-" {
-            if !flags.binary {
-                match fs::read_to_string(file_name) {
-                    Ok(data) => {
-                        processor.consume(data);
-                    }
-                    Err(e) => {
-                        eprintln!("Couldn't open file {}: {}", file_name, e);
-                    }
+            match get_md5_record(&file_name, flags) {
+                Ok(md5_record) => {
+                    output = format_output_line(&md5_record, flags.tag);
                 }
-            } else {
-                match fs::read(file_name) {
-                    Ok(bytes) => {
-                        processor.consume(bytes);
-                    }
-                    Err(e) => {
-                        eprintln!("Couldn't open file {} in binary mode: {}", file_name, e);
-                    }
+                Err(e) => {
+                    eprintln!("Couldn't open file {}: {}", file_name, e);
+                    error_counter += 1;
                 }
-            }
-            let output = format_output_line(file_name, &flags, &processor.finalize());
-            // If zero don't print EOL and add NUL
-            if flags.zero {
-                print! {"{output}\0"};
-            } else {
-                println!("{output}");
             }
         } else {
             let stdin: Stdin = io::stdin();
+            let mut processor = md5::Context::new();
             for line in stdin.lines() {
                 processor.consume(&line?);
             }
-            let output = format_output_line(file_name, &flags, &processor.finalize());
+            let md5_record = Md5Record {
+                file_name: file_name.to_owned(),
+                binary: flags.tag,
+                hash: format!("{:x}", processor.finalize()),
+            };
+            output = format_output_line(&md5_record, flags.tag);
+        }
+        // If zero don't print EOL and add NUL
+        if flags.zero {
+            print! {"{output}\0"};
+        } else {
             println!("{output}");
         }
     }
-    Ok(())
+
+    if error_counter == 0 {
+        Ok(())
+    } else {
+        Err(format!("{} errors detected", error_counter).into())
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -200,40 +245,36 @@ mod md5sum_test {
 
     #[test]
     fn format_output_line_non_bsd() {
-        let mut context = md5::Context::new();
-        let mut flags = CommandLineFlags {
+        let file_name = "filename";
+        let hash = "4e7bb796c99cf98ae40b32b644119c74";
+        let mut md5_record = Md5Record {
+            file_name: file_name.to_owned(),
             binary: false,
-            tag: false,
-            zero: false,
-            check: false,
+            hash: hash.to_owned(),
         };
-        context.consume("123456");
-        let digest = context.finalize();
-        let test1 = format_output_line("file_name", &flags, &digest);
-        assert_eq!(test1, format!("{:x}  {}", &digest, "file_name"));
+        let test1 = format_output_line(&md5_record, false);
+        assert_eq!(test1, format!("{}  {}", hash, file_name));
 
-        flags.binary = true;
-        let test2 = format_output_line("file_name", &flags, &digest);
-        assert_eq!(test2, format!("{:x} *{}", &digest, "file_name"));
+        md5_record.binary = true;
+        let test2 = format_output_line(&md5_record, false);
+        assert_eq!(test2, format!("{} *{}", hash, file_name));
     }
 
     #[test]
     fn format_output_line_bsd() {
-        let mut context = md5::Context::new();
-        let mut flags = CommandLineFlags {
+        let file_name = "filename";
+        let hash = "4e7bb796c99cf98ae40b32b644119c74";
+        let mut md5_record = Md5Record {
+            file_name: file_name.to_owned(),
             binary: false,
-            tag: true,
-            zero: false,
-            check: false,
+            hash: hash.to_owned(),
         };
-        context.consume("123456");
-        let digest = context.finalize();
-        let test1 = format_output_line("file_name", &flags, &digest);
-        assert_eq!(test1, format!("MD5 ({}) = {:x}", "file_name", &digest));
+        let test1 = format_output_line(&md5_record, true);
+        assert_eq!(test1, format!("MD5 ({}) = {}", file_name, hash));
 
-        flags.binary = true;
-        let test2 = format_output_line("file_name", &flags, &digest);
-        assert_eq!(test2, format!("MD5 ({}) = {:x}", "file_name", &digest));
+        md5_record.binary = true;
+        let test2 = format_output_line(&md5_record, true);
+        assert_eq!(test2, format!("MD5 ({}) = {}", file_name, hash));
     }
 
     #[test]
