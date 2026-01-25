@@ -309,4 +309,32 @@ mod md5sum_test {
         assert!(parse_line(line_4).is_err());
         assert!(parse_line(line_5).is_err());
     }
+
+    #[test]
+    fn compare_md5_records() {
+        let record_a = Md5Record {
+            file_name: "one_file".to_owned(),
+            binary: true,
+            hash: "4e7bb796c99cf98ae40b32b644119c74".to_owned(),
+        };
+        let mut record_b = Md5Record {
+            file_name: "one_file".to_owned(),
+            binary: true,
+            hash: "4e7bb796c99cf98ae40b32b644119c74".to_owned(),
+        };
+        assert_eq!(record_a, record_b);
+
+        record_b.file_name = "other_name".to_owned();
+        assert_ne!(record_a, record_b);
+
+        record_b.file_name = "one_file".to_owned();
+        assert_eq!(record_a, record_b);
+        record_b.binary = false;
+        assert_ne!(record_a, record_b);
+
+        record_b.binary = true;
+        assert_eq!(record_a, record_b);
+        record_b.hash = "5e7bb796c99cf98ae40b32b644119c74".to_owned();
+        assert_ne!(record_a, record_b);
+    }
 }
