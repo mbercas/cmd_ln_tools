@@ -2,7 +2,7 @@ use clap::{command, Arg, ArgAction};
 use regex::Regex;
 use std::error::Error;
 use std::fs;
-use std::io::{self, BufReader, Stdin};
+use std::io::{self, Stdin};
 
 /// Struct to hold the command line status
 ///
@@ -89,14 +89,14 @@ fn parse_check_file(file_name: &str) -> Result<Vec<Md5Record>, Box<dyn Error>> {
                         output.push(check_line);
                     }
                     Err(e) => {
-                        eprintln!("{}::{} Error parsing line.", file_name, idx + 1)
+                        eprintln!("{}::{} Error parsing line.\n\t{}", file_name, idx + 1, e)
                     }
                 }
             }
-            if output.is_empty() {
+            if !output.is_empty() {
                 Ok(output)
             } else {
-                Err(format!("Couldn't parse enties in file {}", file_name).into())
+                Err(format!("Couldn't parse entries in file {}", file_name).into())
             }
         }
         Err(e) => Err(e.into()),
@@ -117,32 +117,45 @@ fn parse_line(line: &str) -> Result<Md5Record, Box<dyn Error>> {
     let Some(caps) = re.captures(line) else {
         return Err(format!("Cannot parse {}", line).into());
     };
-    let is_binary = if &caps[2] == "*" { true } else { false };
+    let is_binary = &caps[2] == "*";
     let output = Md5Record {
         file_name: caps[3].to_owned(),
         binary: is_binary,
         hash: caps[1].to_owned(),
     };
 
-    eprintln!("{:#?}", output);
-
     Ok(output)
 }
 
-// fn check(file_name: &str) -> Result<(), Box<dyn Error>> {
-//     match parse_check_file(file_name) {
-//         Ok(input_lines) => {
-//             for line in input_lines {
+fn check(file_name: &str) -> Result<(), Box<dyn Error>> {
+    match parse_check_file(file_name) {
+        Ok(md5_records) => {
+            for md5_record in md5_records {
+                match get_md5_record(&md5_record.file_name, md5_record.binary) {
+                    Ok(compare_record) => {
+                        if md5_record == compare_record {
+                            println!("{}: OK", md5_record.file_name);
+                        } else {
+                            println!("{}: FAILED", md5_record.file_name);
+                        }
+                    }
+                    Err(e) => eprintln!(
+                        "Some error happened reading file: {}: {}",
+                        md5_record.file_name, e
+                    ),
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Some error happened parsing file: {}\n\t{}", file_name, e);
+        }
+    }
+    Ok(())
+}
 
-//             }
-//         }
-//     }
-//     Ok(())
-// }
-
-fn get_md5_record(file_name: &str, flags: &CommandLineFlags) -> Result<Md5Record, Box<dyn Error>> {
+fn get_md5_record(file_name: &str, binary: bool) -> Result<Md5Record, Box<dyn Error>> {
     let mut processor = md5::Context::new();
-    if !flags.binary {
+    if !binary {
         match fs::read_to_string(file_name) {
             Ok(data) => {
                 processor.consume(data);
@@ -163,7 +176,7 @@ fn get_md5_record(file_name: &str, flags: &CommandLineFlags) -> Result<Md5Record
     }
     Ok(Md5Record {
         file_name: file_name.to_owned(),
-        binary: flags.binary,
+        binary,
         hash: format!("{:x}", processor.finalize()),
     })
 }
@@ -188,7 +201,7 @@ fn print_output(input_files: &[String], flags: &CommandLineFlags) -> Result<(), 
     let mut output = String::new();
     for file_name in input_files.iter() {
         if file_name != "-" {
-            match get_md5_record(&file_name, flags) {
+            match get_md5_record(file_name, flags.binary) {
                 Ok(md5_record) => {
                     output = format_output_line(&md5_record, flags.tag);
                 }
@@ -231,10 +244,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let flags = cmd_line.1;
 
     if !flags.check {
-        let out = print_output(&input_files, &flags);
-        out
+        print_output(&input_files, &flags)
     } else {
-        Ok(())
+        check(&input_files[0])
     }
 }
 
